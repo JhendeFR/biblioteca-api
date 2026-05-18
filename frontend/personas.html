@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Gestión de Personas</title>
+    <title>GraphQL CRUD Personas</title>
     <style>
         body { font-family: sans-serif; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; }
@@ -10,155 +10,165 @@
         th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
         th { background-color: #f8f9fa; }
         .form-box { background: #eee; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .btn-delete { color: white; background: #dc3545; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; }
-        .btn-edit { color: white; background: #ffc107; border: none; padding: 5px 10px; cursor: pointer; border-radius: 3px; color: black; margin-right: 5px; }
-        .btn-submit { background: #28a745; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 3px; }
+        button { cursor: pointer; padding: 5px 10px; border: none; border-radius: 3px; color: white; }
+        .btn-delete { background: #dc3545; }
+        .btn-edit { background: #ffc107; color: black; margin-right: 5px; }
+        .btn-submit { background: #28a745; padding: 8px 15px; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>CRUD de Personas</h1>
+        <h1>GraphQL CRUD de Personas</h1>
         <div>
             <span id="userName"></span>
-            <button onclick="logout()">Cerrar Sesión</button>
+            <button onclick="logout()" class="btn-delete">Cerrar Sesión</button>
         </div>
     </div>
 
     <div class="form-box" id="adminSection" style="display:none;">
         <h3 id="formTitulo">Registrar Persona</h3>
         <form id="personaForm">
-            <input type="text" id="nombre" placeholder="Nombre completo" required style="padding: 5px;">
-            <input type="text" id="ci" placeholder="CI / Documento" required style="padding: 5px;">
+            <input type="text" id="nombre" placeholder="Nombre completo" required>
+            <input type="text" id="ci" placeholder="CI / Documento" required>
             <button type="submit" id="btnGuardar" class="btn-submit">Guardar</button>
-            <button type="button" id="btnCancelar" onclick="cancelarEdicion()" style="display:none; padding: 8px 15px;">Cancelar</button>
+            <button type="button" id="btnCancelar" onclick="cancelarEdicion()" style="display:none; background: #6c757d;">Cancelar</button>
         </form>
     </div>
 
     <table>
         <thead>
-            <tr>
-                <th>ID</th><th>Nombre</th><th>CI</th><th>Acciones</th>
-            </tr>
+            <tr><th>ID</th><th>Nombre</th><th>CI</th><th>Acciones</th></tr>
         </thead>
         <tbody id="tablaCuerpo"></tbody>
     </table>
 
     <script>
         const token = localStorage.getItem('token');
-        const rol = localStorage.getItem('usuario_rol');
-
         if (!token) window.location.href = 'index.html';
 
-        document.getElementById('userName').innerText = 'Usuario: ' + localStorage.getItem('usuario_nombre') + ' | ';
-        
-        if (rol === 'administrador') {
+        if (localStorage.getItem('usuario_rol') === 'administrador') {
             document.getElementById('adminSection').style.display = 'block';
         }
 
-        const API_URL = 'http://127.0.0.1:8000/api/personas';
+        // UNICO ENDPOINT PARA TODO
+        const GRAPHQL_URL = 'http://127.0.0.1:8000/graphql';
 
-        // Variable para guardar los datos localmente y saber si estamos editando
         let listaPersonas = [];
         let idEditando = null;
 
-        // 1. Obtener lista (GET)
-        async function cargarPersonas() {
-            const resp = await fetch(API_URL, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            listaPersonas = await resp.json(); // Guardamos los datos en la variable global
-            
-            const tbody = document.getElementById('tablaCuerpo');
-            tbody.innerHTML = '';
-
-            listaPersonas.forEach(p => {
-                tbody.innerHTML += `
-                    <tr>
-                        <td>${p.id}</td>
-                        <td>${p.nombre}</td>
-                        <td>${p.ci}</td>
-                        <td>
-                            <button class="btn-edit" onclick="prepararEdicion(${p.id})">Editar</button>
-                            <button class="btn-delete" onclick="eliminar(${p.id})">Eliminar</button>
-                        </td>
-                    </tr>
-                `;
-            });
-        }
-
-        // 2. Preparar el formulario para Editar
-        function prepararEdicion(id) {
-            // Buscamos a la persona en la lista que ya descargamos
-            const persona = listaPersonas.find(p => p.id === id);
-            
-            if (persona) {
-                // Llenamos los inputs con sus datos
-                document.getElementById('nombre').value = persona.nombre;
-                document.getElementById('ci').value = persona.ci;
-                
-                // Cambiamos el estado de la interfaz
-                idEditando = id;
-                document.getElementById('formTitulo').innerText = 'Editar Persona (ID: ' + id + ')';
-                document.getElementById('btnGuardar').innerText = 'Actualizar';
-                document.getElementById('btnGuardar').style.background = '#007bff';
-                document.getElementById('btnCancelar').style.display = 'inline-block';
-            }
-        }
-
-        // 3. Cancelar la edición
-        function cancelarEdicion() {
-            idEditando = null;
-            document.getElementById('personaForm').reset();
-            document.getElementById('formTitulo').innerText = 'Registrar Persona';
-            document.getElementById('btnGuardar').innerText = 'Guardar';
-            document.getElementById('btnGuardar').style.background = '#28a745';
-            document.getElementById('btnCancelar').style.display = 'none';
-        }
-
-        // 4. Crear (POST) o Actualizar (PUT)
-        document.getElementById('personaForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const body = {
-                nombre: document.getElementById('nombre').value,
-                ci: document.getElementById('ci').value
-            };
-
-            // Determinamos la URL y el Método dependiendo de si estamos creando o editando
-            const urlFinal = idEditando ? `${API_URL}/${idEditando}` : API_URL;
-            const metodoFinal = idEditando ? 'PUT' : 'POST';
-
-            const resp = await fetch(urlFinal, {
-                method: metodoFinal,
+        // --- FUNCIÓN CENTRAL PARA EJECUTAR GRAPHQL ---
+        async function fetchGraphQL(query, variables = {}) {
+            const resp = await fetch(GRAPHQL_URL, {
+                method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}` 
                 },
-                body: JSON.stringify(body)
+                body: JSON.stringify({ query, variables })
             });
+            const result = await resp.json();
+            if (result.errors) throw new Error(result.errors[0].message);
+            return result.data;
+        }
 
-            if (resp.ok) {
-                cancelarEdicion(); // Limpiamos el formulario y restauramos su estado original
-                cargarPersonas();  // Refrescamos la tabla
-                alert(idEditando ? 'Actualizado correctamente' : 'Registrado correctamente');
-            } else {
-                alert('No tienes permisos o los datos son inválidos.');
+        // 1. LEER DATOS (Query)
+        async function cargarPersonas() {
+            const query = `
+                query {
+                    personas {
+                        id
+                        nombre
+                        ci
+                    }
+                }
+            `;
+            try {
+                const data = await fetchGraphQL(query);
+                listaPersonas = data.personas;
+                
+                const tbody = document.getElementById('tablaCuerpo');
+                tbody.innerHTML = '';
+                listaPersonas.forEach(p => {
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${p.id}</td><td>${p.nombre}</td><td>${p.ci}</td>
+                            <td>
+                                <button class="btn-edit" onclick="prepararEdicion(${p.id})">Editar</button>
+                                <button class="btn-delete" onclick="eliminar(${p.id})">Eliminar</button>
+                            </td>
+                        </tr>`;
+                });
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        // 2. CREAR o ACTUALIZAR DATOS (Mutation)
+        document.getElementById('personaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const nombre = document.getElementById('nombre').value;
+            const ci = document.getElementById('ci').value;
+
+            // Mutation para Actualizar
+            const mutacionActualizar = `
+                mutation($id: ID!, $nombre: String!, $ci: String!) {
+                    updatePersona(id: $id, nombre: $nombre, ci: $ci) { id }
+                }
+            `;
+            
+            // Mutation para Crear
+            const mutacionCrear = `
+                mutation($nombre: String!, $ci: String!) {
+                    createPersona(nombre: $nombre, ci: $ci) { id }
+                }
+            `;
+
+            try {
+                if (idEditando) {
+                    await fetchGraphQL(mutacionActualizar, { id: idEditando, nombre, ci });
+                    alert('Actualizado con GraphQL');
+                } else {
+                    await fetchGraphQL(mutacionCrear, { nombre, ci });
+                    alert('Creado con GraphQL');
+                }
+                cancelarEdicion();
+                cargarPersonas();
+            } catch (error) {
+                alert('Error al guardar: ' + error);
             }
         });
 
-        // 5. Eliminar (DELETE)
+        // 3. ELIMINAR DATOS (Mutation)
         async function eliminar(id) {
-            if (!confirm('¿Seguro que deseas eliminar?')) return;
-            const resp = await fetch(`${API_URL}/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (resp.ok) cargarPersonas();
+            if (!confirm('¿Seguro?')) return;
+            const mutation = `
+                mutation($id: ID!) {
+                    deletePersona(id: $id) { id }
+                }
+            `;
+            try {
+                await fetchGraphQL(mutation, { id: id.toString() });
+                cargarPersonas();
+            } catch (error) { alert('Error al eliminar'); }
         }
 
-        function logout() {
-            localStorage.clear();
-            window.location.href = 'index.html';
+        function prepararEdicion(id) {
+            const persona = listaPersonas.find(p => p.id == id);
+            if (persona) {
+                document.getElementById('nombre').value = persona.nombre;
+                document.getElementById('ci').value = persona.ci;
+                idEditando = id;
+                document.getElementById('btnGuardar').innerText = 'Actualizar';
+                document.getElementById('btnCancelar').style.display = 'inline-block';
+            }
         }
+
+        function cancelarEdicion() {
+            idEditando = null;
+            document.getElementById('personaForm').reset();
+            document.getElementById('btnGuardar').innerText = 'Guardar';
+            document.getElementById('btnCancelar').style.display = 'none';
+        }
+
+        function logout() { localStorage.clear(); window.location.href = 'index.html'; }
 
         cargarPersonas();
     </script>

@@ -1,0 +1,24 @@
+# Definimos cómo es el objeto Persona
+type Persona {
+    id: ID!
+    nombre: String!
+    ci: String!
+}
+
+# Queries (Para LEER datos - Equivalente a GET)
+type Query {
+    # Lista todas las personas. @all le dice a Laravel que haga un Persona::all() automáticamente
+    personas: [Persona!]! @all 
+}
+
+# Mutations (Para MODIFICAR datos - Equivalente a POST, PUT, DELETE)
+type Mutation {
+    # El de crear se queda igual porque no necesita buscar a nadie
+    createPersona(nombre: String!, ci: String!): Persona! @create
+    
+    # Añadimos @whereKey al id para que sepa a quién actualizar
+    updatePersona(id: ID! @whereKey, nombre: String, ci: String): Persona! @update
+    
+    # Añadimos @whereKey al id para que sepa a quién eliminar
+    deletePersona(id: ID! @whereKey): Persona @delete
+}
